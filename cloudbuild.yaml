@@ -1,0 +1,43 @@
+### cloudbuild.yaml para la canalización de CI/CD
+
+### Configura sustituciones
+para los valores dinámicos:
+  _PROJECT_ID: <your-project-id> # Ingresa tu ID de proyecto
+  _REGION: <your-region> # Ingresa tu región
+  _SERVICE_NAME: inventory-api
+  _REPOSITORY: cloud-run-source-deploy
+  # Define la imagen completa una vez para evitar repeticiones y errores
+  _IMAGE_NAME: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}
+
+steps:
+  ### Paso 1: Crea la imagen de Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Build-Docker-Image
+    args:
+      - 'build'
+      - '-t'
+      - '${_IMAGE_NAME}:$COMMIT_SHA'
+      - '.'
+
+  ### Paso 2: Envía la imagen de Docker a Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Push-to-Artifact-Registry
+    args:
+      - 'push'
+      - '${_IMAGE_NAME}:$COMMIT_SHA'
+
+  ### Paso 3: Implementa la nueva imagen en Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: Deploy-to-Cloud-Run
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_IMAGE_NAME}:$COMMIT_SHA'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated' # Permite el acceso sin autenticación a este lab
+
+options: # En esta sección, se definen las opciones globales de la compilación
+  logging: CLOUD_LOGGING_ONLY # Esta es la opción de registro
